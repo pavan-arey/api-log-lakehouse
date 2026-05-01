@@ -1,0 +1,12 @@
+{"request_id":"req_20260423_000001","event_time":"2026-04-23T09:00:12Z","service":"auth-api","endpoint":"/v1/login","method":"POST","status_code":200,"latency_ms":120,"bytes_in":820,"bytes_out":2048,"client_type":"web","region":"ap-south-1","host":"app-01"}
+{"request_id":"req_20260423_000002","event_time":"2026-04-23T09:01:45Z","service":"docs-api","endpoint":"/v1/documents/upload","method":"POST","status_code":201,"latency_ms":210,"bytes_in":1536,"bytes_out":48210,"client_type":"desktop","region":"ap-south-1","host":"app-02"}
+{"request_id":"req_20260423_000003","event_time":"2026-04-23T09:03:10Z","service":"search-api","endpoint":"/v1/search","method":"GET","status_code":200,"latency_ms":95,"bytes_in":120,"bytes_out":5400,"client_type":"mobile","region":"eu-west-1","host":"app-03"}
+{"request_id":"req_20260423_000004","event_time":"2026-04-23T09:05:55Z","service":"notifications-api","endpoint":"/v1/notify","method":"POST","status_code":202,"latency_ms":180,"bytes_in":640,"bytes_out":1024,"client_type":"web","region":"us-east-1","host":"app-01"}
+{"request_id":"req_20260423_000005","event_time":"2026-04-23T09:07:22Z","service":"auth-api","endpoint":"/v1/logout","method":"POST","status_code":200,"latency_ms":75,"bytes_in":300,"bytes_out":512,"client_type":"mobile","region":"ap-south-1","host":"app-02"}
+{"request_id":"req_20260423_000006","event_time":"2026-04-23T09:08:49Z","service":"docs-api","endpoint":"/v1/documents/get","method":"GET","status_code":200,"latency_ms":130,"bytes_in":200,"bytes_out":10480,"client_type":"web","region":"eu-west-1","host":"app-03"}
+
+{"request_id":"req_20260423_000003","event_time":"2026-04-23T09:03:10Z","service":"search-api","endpoint":"/v1/search","method":"GET","status_code":200,"latency_ms":95,"bytes_in":120,"bytes_out":5400,"client_type":"mobile","region":"eu-west-1","host":"app-03"}
+
+{"request_id":"req_20260423_000007","event_time":"2026-04-23T09:10:11Z","service":"search-api","endpoint":"/v1/search","method":"GET","status_code":200,"latency_ms":-50,"bytes_in":100,"bytes_out":5000,"client_type":"web","region":"ap-south-1","host":"app-01"}
+
+{"event_time":"2026-04-23T09:11:30Z","service":"auth-api","endpoint":"/v1/login","method":"POST","status_code":401,"latency_ms":110,"bytes_in":700,"bytes_out":900,"client_type":"desktop","region":"us-east-1","host":"app-02"}
