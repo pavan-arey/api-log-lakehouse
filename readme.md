@@ -117,6 +117,15 @@ Raw JSON files → Bronze → Silver (clean + quarantine) → Gold (KPIs)
 
 ---
 
+## Orchestration
+
+The Bronze → Silver → Gold Databricks notebooks are grouped into a Databricks Job and orchestrated from Apache Airflow using `DatabricksRunNowOperator`.
+
+The Airflow DAG runs on a daily schedule and triggers the Databricks job using a workspace API token. Historical data processing is supported using Airflow backfill.
+
+---
+
+
 ## How to Run
 
 1. Generate synthetic logs:
@@ -138,17 +147,56 @@ python scripts/generate_logs.py --date 2026-04-23 --hour 09 --rows 250 --late-ra
 * `02_silver_clean.ipynb`
 * `03_gold_kpis.ipynb`
 
-4. Query final table:
+4. Create Databricks Job:
 
-```
-workspace.api_logs_schema.gold_service_daily_kpis
-```
+* bronze_ingest → silver_clean → gold_kpis
+
+5. Run Airflow DAG:
+
+* `api_logs_databricks_run`
 
 ---
 
 ## Notes
 
-* Bronze stores raw data for audit and replay.
-* Silver handles data quality logic (validation, deduplication).
-* Gold is optimized for analytics and reporting.
-* Built using Databricks Free Edition and Delta Lake.
+* Bronze stores raw data for audit and replay
+* Silver handles data quality logic (validation, deduplication)
+* Gold is optimized for analytics and reporting
+* Airflow is used only for orchestration, not transformation logic
+* Built using Databricks Free Edition, Delta Lake, and Apache Airflow
+
+---
+
+## Repository Structure
+
+```
+api-log-lakehouse/
+  README.md
+  scripts/
+    generate_logs.py
+  sample_data/
+    raw/
+    dims/
+  databricks_delta/
+    01_bronze_ingest.ipynb
+    02_silver_clean.ipynb
+    03_gold_kpis.ipynb
+  airflow_local/
+    dags/
+      api_logs_databricks_run.py
+  docs/
+    screenshots/
+```
+
+---
+
+## Status
+
+End-to-end pipeline completed:
+
+* Data generation
+* Bronze / Silver / Gold layers
+* Databricks Job orchestration
+* Airflow DAG + backfill
+
+Ready for next step: **dbt modeling and testing**
