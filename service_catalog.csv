@@ -1,0 +1,5 @@
+service,team,sla_ms,criticality
+auth-api,platform,150,high
+docs-api,content,300,medium
+search-api,search,250,high
+notifications-api,engagement,400,low
