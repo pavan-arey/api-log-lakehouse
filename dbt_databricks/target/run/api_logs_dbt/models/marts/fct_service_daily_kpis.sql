@@ -1,5 +1,21 @@
-with logs as(
-    select * from {{ref('stg_api_logs_clean')}}
+
+  
+    
+        create or replace table `workspace`.`gold_dbt`.`fct_service_daily_kpis`
+      
+      
+    using delta
+  
+      
+      
+      
+      
+      
+      
+      
+      as
+      with logs as(
+    select * from `workspace`.`gold_dbt`.`stg_api_logs_clean`
 ),
 
 svc as(
@@ -8,7 +24,7 @@ svc as(
         team,
         cast(sla_ms as int) as sla_ms,
         criticality
-    from {{ref('service_catalog')}}
+    from `workspace`.`gold_dbt_gold_dbt`.`service_catalog`
 )
 
 select
@@ -36,3 +52,4 @@ group by
     l.service,
     s.team,
     s.criticality
+  

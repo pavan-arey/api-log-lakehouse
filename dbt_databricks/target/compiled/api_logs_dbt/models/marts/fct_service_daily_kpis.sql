@@ -1,5 +1,5 @@
 with logs as(
-    select * from {{ref('stg_api_logs_clean')}}
+    select * from `workspace`.`gold_dbt`.`stg_api_logs_clean`
 ),
 
 svc as(
@@ -8,7 +8,7 @@ svc as(
         team,
         cast(sla_ms as int) as sla_ms,
         criticality
-    from {{ref('service_catalog')}}
+    from `workspace`.`gold_dbt_gold_dbt`.`service_catalog`
 )
 
 select
