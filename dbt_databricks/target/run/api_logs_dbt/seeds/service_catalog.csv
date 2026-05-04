@@ -1,0 +1,22 @@
+
+    
+    
+    
+    create  table `workspace`.`gold_dbt_gold_dbt`.`service_catalog` (`service` string ,`team` string ,`sla_ms` bigint ,`criticality` string )
+    
+    using delta
+  
+    
+    
+    
+    
+    
+  ;
+    -- dbt seed --
+    
+          insert overwrite `workspace`.`gold_dbt_gold_dbt`.`service_catalog` values
+          (%s,%s,%s,%s),(%s,%s,%s,%s),(%s,%s,%s,%s),(%s,%s,%s,%s)
+      
+
+;
+  
