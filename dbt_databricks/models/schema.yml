@@ -1,0 +1,22 @@
+version: 2
+
+sources:
+  - name: silver
+    catalog: workspace
+    schema: api_logs_schema
+    tables:
+      - name: silver_api_logs_clean
+        description: Clean API logs created by the Silver Databricks notebook.
+
+seeds:
+  - name: service_catalog
+    description: Service metadata used for SLA enrichment.
+    columns:
+      - name: service
+        data_tests:
+          - unique
+          - not_null
+      - name: criticality
+        data_tests:
+          - accepted_values:
+              values: ['high', 'medium', 'low']
