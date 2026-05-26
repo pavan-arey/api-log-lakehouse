@@ -216,3 +216,32 @@ This scale test helped validate:
 - duplicate handling
 - late-arriving event behavior
 - dbt mart rebuilds on top of corrected Silver data
+
+
+
+
+## Scale and Streaming Validation
+
+The pipeline was tested on a scaled synthetic workload and extended with streaming-style Bronze ingestion.
+
+### Scaled Batch Run
+
+- Input files uploaded to Databricks: 60
+- Bronze rows: 1,280,995
+- Silver clean rows: 1,230,948
+- Silver quarantine rows: 19,535
+- dbt staging rows: 1,230,948
+- dbt service daily KPI rows: 100
+- dbt endpoint hourly KPI rows: 350
+
+During scale testing, an overly broad duplicate-removal issue was discovered and fixed. The initial deduplication used only `request_id`, but the synthetic generator reused request IDs across files. Silver deduplication was corrected to use a full event identity, preventing unrelated records from being collapsed.
+
+### Streaming Bronze
+
+A streaming Bronze ingestion path was added using Databricks Auto Loader / Structured Streaming. New files landing in the streaming input folder are processed incrementally into a separate Bronze Delta table with checkpointing.
+
+The streaming path demonstrates:
+- incremental file ingestion
+- checkpoint-based progress tracking
+- separation between ingestion and downstream cleaning
+- batch Silver and dbt marts remaining reusable
