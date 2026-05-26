@@ -199,4 +199,20 @@ End-to-end pipeline completed:
 * Databricks Job orchestration
 * Airflow DAG + backfill
 
-Ready for next step: **dbt modeling and testing**
+
+## Scale Test
+
+The pipeline was rerun on a larger synthetic workload to validate scale-sensitive behavior.
+
+- Input: 30 days of synthetic API logs
+- Files uploaded to Databricks: 60
+- Raw Bronze rows: `<paste count>`
+- Silver clean rows: `<paste count>`
+- Silver quarantine rows: `<paste count>`
+
+This scale test helped validate:
+- batch ingestion over multiple daily partitions
+- bad-record quarantine
+- duplicate handling
+- late-arriving event behavior
+- dbt mart rebuilds on top of corrected Silver data
