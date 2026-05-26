@@ -245,3 +245,28 @@ The streaming path demonstrates:
 - checkpoint-based progress tracking
 - separation between ingestion and downstream cleaning
 - batch Silver and dbt marts remaining reusable
+
+
+### Triggered Streaming Validation
+
+Streaming Bronze was validated using triggered micro-batch execution rather than a continuously running stream.
+
+Current streaming validation counts:
+
+- Streaming Bronze rows: 1,280,995
+- Streaming Silver clean rows: 1,230,948
+- Streaming Silver quarantine rows: 19,535
+- dbt staging rows: 1,230,948
+- dbt service daily rows: 100
+- dbt endpoint hourly rows: 350
+
+Execution model:
+
+```text
+new files land in stream_landing/
+        ↓
+04_streaming_bronze_ingest runs with checkpointing
+        ↓
+05_streaming_silver_clean reuses Silver validation logic
+        ↓
+clean and quarantine stream tables are refreshed
