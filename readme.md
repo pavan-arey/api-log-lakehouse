@@ -1,22 +1,73 @@
-# API Log Lakehouse (Databricks + Delta)
+# API Log Lakehouse
 
-## Architecture
+### Databricks + Delta Lake + Airflow + dbt
 
-This project implements a simple medallion (Bronze → Silver → Gold) lakehouse pipeline using Databricks and Delta Lake.
+Production-style medallion lakehouse pipeline for ingesting, validating, and analyzing high-volume API telemetry data using Databricks and Delta Lake.
 
-* Raw JSON API logs are ingested into a Bronze table as immutable text for replayability and audit.
-* Silver transforms the data by parsing JSON, enforcing schema, filtering invalid records into a quarantine table, and deduplicating by `request_id`.
-* Gold aggregates the cleaned data into daily service-level KPIs such as error rate, latency, and SLA breaches.
+This project simulates how data engineering teams process operational API logs into reliable analytical datasets for monitoring, SLA tracking, and downstream reporting.
 
-**Flow:**
+---
 
-```
-Raw JSON files → Bronze → Silver (clean + quarantine) → Gold (KPIs)
+# Repository
+
+```text
+https://github.com/pavan-arey/api-log-lakehouse
 ```
 
 ---
 
-## Raw Log Schema
+# Overview
+
+The pipeline ingests raw JSON API logs into Delta Lake, applies validation and deduplication logic, quarantines bad records, and produces analytical KPI marts for service monitoring.
+
+The project includes:
+
+* batch ingestion pipelines
+* streaming-style ingestion with Auto Loader
+* Delta Lake medallion architecture
+* quarantine handling for malformed records
+* late-arriving event handling
+* dbt analytical marts
+* Airflow orchestration
+* scale validation on ~1.28M records
+
+---
+
+# Architecture
+
+```text
+Raw Files / Stream Landing
+            ↓
+Bronze Delta Tables
+            ↓
+Silver Validation + Quarantine
+            ↓
+Gold KPI Aggregates + dbt Marts
+            ↓
+Airflow-Orchestrated Pipelines
+```
+
+---
+
+# Tech Stack
+
+* Databricks
+* Apache Spark
+* Delta Lake
+* PySpark
+* Structured Streaming
+* Databricks Auto Loader
+* Apache Airflow
+* dbt
+* Python
+
+---
+
+# Dataset
+
+Synthetic API telemetry logs were generated to emulate production API traffic.
+
+Example event:
 
 ```json
 {
@@ -35,238 +86,350 @@ Raw JSON files → Bronze → Silver (clean + quarantine) → Gold (KPIs)
 }
 ```
 
+The generator supports:
+
+* configurable duplicate rates
+* malformed JSON generation
+* invalid status codes
+* negative latency values
+* late-arriving events
+* deterministic seeded runs
+
 ---
 
-## Tables
+# Medallion Layers
 
-### Bronze
+## Bronze Layer
 
-* `workspace.api_logs_schema.bronze_api_logs_raw`
+### Table
 
-  * Raw JSON logs stored as text (`value`)
-  * Includes ingestion metadata (`ingest_ts`, `source_file`)
-  * No parsing or validation applied
+`workspace.api_logs_schema.bronze_api_logs_raw`
 
-### Silver
+### Purpose
+
+Stores immutable raw ingestion data exactly as received.
+
+### Characteristics
+
+* raw JSON stored as text
+* append-only Delta table
+* ingestion metadata captured
+* replayable source of truth
+* no validation or transformation
+
+### Metadata Captured
+
+* `ingest_ts`
+* `source_file`
+
+---
+
+## Silver Layer
+
+### Tables
 
 * `workspace.api_logs_schema.silver_api_logs_clean`
-
-  * Parsed JSON into structured columns
-  * Enforced schema and validation rules
-  * Removed invalid records
-  * Deduplicated by `request_id`
-
 * `workspace.api_logs_schema.silver_api_logs_quarantine`
 
-  * Records that failed validation
-  * Examples:
+### Responsibilities
 
-    * missing `request_id`
-    * negative `latency_ms`
-    * invalid `status_code`
-    * malformed JSON
+* JSON parsing
+* schema enforcement
+* validation
+* duplicate handling
+* bad-record isolation
 
-### Gold
+### Validation Rules
 
-* `workspace.api_logs_schema.gold_service_daily_kpis`
+Records are quarantined if they contain:
 
-  * Aggregated daily metrics per service
-  * Includes:
+* malformed JSON
+* missing `request_id`
+* invalid `status_code`
+* negative `latency_ms`
 
-    * total requests
-    * client and server errors
-    * error rate
-    * average and p95 latency
-    * SLA breach counts
-    * total bytes out
+### Duplicate Handling
 
----
+During scale testing, an overly broad duplicate-removal issue was discovered.
 
-## Data Quality Definitions
+The initial implementation deduplicated only on `request_id`, but the synthetic generator reused IDs across files, causing unrelated records to collapse.
 
-* **Late data**
-  Records where `event_time` belongs to a previous day but arrive in a later ingest batch.
+Deduplication logic was corrected to use a fuller event identity, preventing accidental data loss during large-scale ingestion validation.
 
-* **Bad data**
-  Invalid records such as:
-
-  * missing `request_id`
-  * negative `latency_ms`
-  * invalid `status_code`
-  * malformed JSON
-
-* **Duplicate data**
-  Multiple records with the same `request_id`.
+This debugging process helped validate correctness under scaled workloads.
 
 ---
 
-## Business Questions
+## Gold Layer
 
-1. Which services had the highest error rate each day?
-2. Which endpoints had the highest p95 latency?
-3. Which services breached SLA most often?
+### Table
 
----
+`workspace.api_logs_schema.gold_service_daily_kpis`
 
-## Example KPIs
+### Purpose
 
-* Total requests per service per day
-* Error rate (4xx + 5xx)
-* Average latency and p95 latency
-* SLA breach counts per service
+Aggregated KPI layer for operational analytics and reporting.
 
----
+### Metrics
 
-## Orchestration
+* total requests
+* 4xx errors
+* 5xx errors
+* error rate
+* average latency
+* p95 latency
+* SLA breach counts
+* total bytes transferred
 
-The Bronze → Silver → Gold Databricks notebooks are grouped into a Databricks Job and orchestrated from Apache Airflow using `DatabricksRunNowOperator`.
+### Example Business Questions
 
-The Airflow DAG runs on a daily schedule and triggers the Databricks job using a workspace API token. Historical data processing is supported using Airflow backfill.
-
----
-
-
-## How to Run
-
-1. Generate synthetic logs:
-
-```bash
-python scripts/generate_logs.py --date 2026-04-23 --hour 09 --rows 250 --late-rate 0 --dup-rate 0.02 --bad-rate 0.01 --seed 1 --out sample_data/raw/...
-```
-
-2. Upload files to Databricks Volume:
-
-```
-/Volumes/workspace/api_logs_schema/api_logs_volume/
-```
-
-3. Run notebooks in order:
-
-* `00_explore.ipynb`
-* `01_bronze_ingest.ipynb`
-* `02_silver_clean.ipynb`
-* `03_gold_kpis.ipynb`
-
-4. Create Databricks Job:
-
-* bronze_ingest → silver_clean → gold_kpis
-
-5. Run Airflow DAG:
-
-* `api_logs_databricks_run`
+* Which services had the highest daily error rate?
+* Which endpoints had the highest p95 latency?
+* Which services breached SLA most frequently?
 
 ---
 
-## Notes
+# Streaming Ingestion
 
-* Bronze stores raw data for audit and replay
-* Silver handles data quality logic (validation, deduplication)
-* Gold is optimized for analytics and reporting
-* Airflow is used only for orchestration, not transformation logic
-* Built using Databricks Free Edition, Delta Lake, and Apache Airflow
+The project was extended with a streaming-style ingestion path using Databricks Auto Loader and Structured Streaming.
 
----
-
-## Repository Structure
-
-```
-api-log-lakehouse/
-  README.md
-  scripts/
-    generate_logs.py
-  sample_data/
-    raw/
-    dims/
-  databricks_delta/
-    01_bronze_ingest.ipynb
-    02_silver_clean.ipynb
-    03_gold_kpis.ipynb
-  airflow_local/
-    dags/
-      api_logs_databricks_run.py
-  docs/
-    screenshots/
-```
-
----
-
-## Status
-
-End-to-end pipeline completed:
-
-* Data generation
-* Bronze / Silver / Gold layers
-* Databricks Job orchestration
-* Airflow DAG + backfill
-
-
-## Scale Test
-
-The pipeline was rerun on a larger synthetic workload to validate scale-sensitive behavior.
-
-- Input: 30 days of synthetic API logs
-- Files uploaded to Databricks: 60
-- Raw Bronze rows: `<paste count>`
-- Silver clean rows: `<paste count>`
-- Silver quarantine rows: `<paste count>`
-
-This scale test helped validate:
-- batch ingestion over multiple daily partitions
-- bad-record quarantine
-- duplicate handling
-- late-arriving event behavior
-- dbt mart rebuilds on top of corrected Silver data
-
-
-
-
-## Scale and Streaming Validation
-
-The pipeline was tested on a scaled synthetic workload and extended with streaming-style Bronze ingestion.
-
-### Scaled Batch Run
-
-- Input files uploaded to Databricks: 60
-- Bronze rows: 1,280,995
-- Silver clean rows: 1,230,948
-- Silver quarantine rows: 19,535
-- dbt staging rows: 1,230,948
-- dbt service daily KPI rows: 100
-- dbt endpoint hourly KPI rows: 350
-
-During scale testing, an overly broad duplicate-removal issue was discovered and fixed. The initial deduplication used only `request_id`, but the synthetic generator reused request IDs across files. Silver deduplication was corrected to use a full event identity, preventing unrelated records from being collapsed.
-
-### Streaming Bronze
-
-A streaming Bronze ingestion path was added using Databricks Auto Loader / Structured Streaming. New files landing in the streaming input folder are processed incrementally into a separate Bronze Delta table with checkpointing.
-
-The streaming path demonstrates:
-- incremental file ingestion
-- checkpoint-based progress tracking
-- separation between ingestion and downstream cleaning
-- batch Silver and dbt marts remaining reusable
-
-
-### Triggered Streaming Validation
-
-Streaming Bronze was validated using triggered micro-batch execution rather than a continuously running stream.
-
-Current streaming validation counts:
-
-- Streaming Bronze rows: 1,280,995
-- Streaming Silver clean rows: 1,230,948
-- Streaming Silver quarantine rows: 19,535
-- dbt staging rows: 1,230,948
-- dbt service daily rows: 100
-- dbt endpoint hourly rows: 350
-
-Execution model:
+## Streaming Flow
 
 ```text
 new files land in stream_landing/
         ↓
-04_streaming_bronze_ingest runs with checkpointing
+04_streaming_bronze_ingest
         ↓
-05_streaming_silver_clean reuses Silver validation logic
+05_streaming_silver_clean
         ↓
-clean and quarantine stream tables are refreshed
+stream clean + quarantine tables refreshed
+```
+
+## Features
+
+* incremental file ingestion
+* checkpoint-based progress tracking
+* triggered micro-batch execution
+* reusable Silver validation logic
+* separation of ingestion and downstream transformation
+
+The streaming implementation was validated using triggered execution rather than continuously running clusters.
+
+---
+
+# Scale Testing
+
+The pipeline was validated on a larger synthetic workload to test ingestion behavior, validation logic, and downstream rebuild consistency.
+
+## Scale Validation Results
+
+| Layer                    | Row Count |
+| ------------------------ | --------: |
+| Bronze                   | 1,280,995 |
+| Silver Clean             | 1,230,948 |
+| Silver Quarantine        |    19,535 |
+| dbt Staging              | 1,230,948 |
+| dbt Service Daily KPIs   |       100 |
+| dbt Endpoint Hourly KPIs |       350 |
+
+## Scale Testing Validated
+
+* multi-file batch ingestion
+* malformed-record quarantine
+* duplicate handling behavior
+* late-arriving event processing
+* streaming checkpoint consistency
+* downstream dbt mart rebuilds
+
+---
+
+# Why These Design Decisions?
+
+## Why store raw JSON in Bronze?
+
+* replayability
+* auditability
+* schema evolution safety
+* separation of ingestion from transformation
+
+## Why use a quarantine table?
+
+Bad records are isolated without failing the entire ingestion pipeline.
+
+This allows:
+
+* continued processing of valid data
+* investigation of malformed records
+* safer operational workflows
+
+## Why separate Airflow from transformations?
+
+Airflow handles orchestration only.
+
+Transformation logic remains inside Databricks notebooks and dbt models, keeping orchestration concerns separate from data processing logic.
+
+---
+
+# Orchestration
+
+## Databricks Workflow
+
+```text
+bronze_ingest
+    ↓
+silver_clean
+    ↓
+gold_kpis
+```
+
+## Airflow DAG
+
+Airflow triggers the Databricks workflow using:
+
+```python
+DatabricksRunNowOperator
+```
+
+### Features
+
+* scheduled daily execution
+* historical backfill support
+* external orchestration
+* dependency management
+
+---
+
+# Repository Structure
+
+```text
+api-log-lakehouse/
+│
+├── README.md
+│
+├── scripts/
+│   └── generate_logs.py
+│
+├── sample_data/
+│   ├── raw/
+│   └── dims/
+│
+├── databricks_delta/
+│   ├── 00_explore.ipynb
+│   ├── 01_bronze_ingest.ipynb
+│   ├── 02_silver_clean.ipynb
+│   ├── 03_gold_kpis.ipynb
+│   ├── 04_streaming_bronze_ingest.ipynb
+│   └── 05_streaming_silver_clean.ipynb
+│
+├── airflow_local/
+│   └── dags/
+│       └── api_logs_databricks_run.py
+│
+├── dbt/
+│   ├── models/
+│   └── marts/
+│
+└── docs/
+    └── screenshots/
+```
+
+---
+
+# How to Run
+
+## 1. Generate Synthetic Logs
+
+```bash
+python scripts/generate_logs.py \
+  --date 2026-04-23 \
+  --hour 09 \
+  --rows 250 \
+  --late-rate 0 \
+  --dup-rate 0.02 \
+  --bad-rate 0.01 \
+  --seed 1 \
+  --out sample_data/raw/
+```
+
+## 2. Upload Files to Databricks Volume
+
+```text
+/Volumes/workspace/api_logs_schema/api_logs_volume/
+```
+
+## 3. Run Databricks Notebooks
+
+```text
+00_explore.ipynb
+01_bronze_ingest.ipynb
+02_silver_clean.ipynb
+03_gold_kpis.ipynb
+```
+
+## 4. Create Databricks Workflow
+
+```text
+bronze_ingest → silver_clean → gold_kpis
+```
+
+## 5. Run Airflow DAG
+
+```text
+api_logs_databricks_run
+```
+
+---
+
+# Screenshots
+
+Add screenshots for:
+
+* Databricks workflow DAG
+* Airflow DAG
+* Delta tables
+* KPI query results
+* streaming checkpoints
+* quarantine table examples
+
+---
+
+# Key Concepts Demonstrated
+
+## Data Engineering
+
+* medallion architecture
+* Delta Lake pipelines
+* schema enforcement
+* data quality validation
+* late-arriving event handling
+* incremental ingestion
+
+## Streaming & Platform Engineering
+
+* Auto Loader ingestion
+* checkpoint management
+* triggered micro-batches
+* replayable raw storage
+* operational telemetry workflows
+
+## Analytics Engineering
+
+* dbt marts
+* service-level KPIs
+* latency percentile analysis
+* operational reporting datasets
+
+---
+
+# Status
+
+Completed end-to-end implementation including:
+
+* synthetic data generation
+* Bronze / Silver / Gold layers
+* streaming ingestion extension
+* quarantine workflows
+* dbt marts
+* Databricks orchestration
+* Airflow scheduling and backfill support
+* scale validation on ~1.28M records
